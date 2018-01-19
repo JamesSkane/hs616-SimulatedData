@@ -1,0 +1,623 @@
+---
+title: "Outpatient ‘No Show’ Analysis"
+author: "James Skane"
+date: "5/18/2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r Package Imports, message=FALSE, warning=FALSE, include=FALSE}
+library(dplyr)
+library(WVPlots)
+library(ggplot2)
+library(reshape)
+library('GGally')
+library(epiR)
+library(corrgram)
+```
+
+
+
+## Introduction
+
+This project focused on outpatient appointment no-shows, specifically outpatient endoscopy procedures requiring anesthesia. Simulated data was derived from the following article: [Prevalence and predictors of patient no-shows to outpatient endoscopic procedures scheduled with anesthesia](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4589132/). Available at: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4589132/
+
+####Relationships being investigated:
+Investigating the relationship between between particular behavioral and social determinents of health, and patient no-shows to outpatient endoscopic procedures that require anesthesia. The primary goal is to identify variables that have a statistically significant effect on patient no-shows, and quantify the magnitude and direction of these relationships. Relationships were assessed using chi-square, ANOVA, t-tests, and Logistic Regression. As stated previously, all was derived from the descriptive statistics contained in the following article: [Prevalence and predictors of patient no-shows to outpatient endoscopic procedures scheduled with anesthesia](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4589132/).
+
+___________
+
+####Dataset Description
+The simulated data set includes 511 rows and 18 columns.
+
+Below are the predictor variables I plan to utilize. The distribution information listed below reflects the entire patient population. Class specific distribution information can be found within the artcle's [Table 1](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4589132/table/Tab1/) 
+
+
+##Predictor Variables:  
+#####*"age"*
+- type=numeric, continous
+- distribution=normal,  rnorm(n = 511,mean = 55.4,sd = 11.1)
+- no missing data     
+
+#####*"male"*   
+- type=binary factor, Levels: 0 1
+- distribution=Bernoulli, rbinom(n = 511,prob= 0.554,size = 1)
+- no missing data          
+
+#####*"race"*   
+- type=factor, Levels: asian, black, hisp, other, white
+- distribution=Binomial, sample(x=c("white","black", "hisp", "asian", "other"), size=n, replace=TRUE, prob=c(0.298, 0.341, 0.168, 0.166, 0.027))
+- no missing data           
+
+#####*"lang"*   
+- type=factor, Levels: asian, english, spanish
+- distribution=Binomial, lang <- sample(x=c("english","spanish", "asian"), size=n, replace=TRUE,prob=c(.773,.11,.094))
+- no missing data 
+
+#####*"immigrant"* 
+- type=binary factor, Levels: 0 1
+- distribution=Bernoulli, rbinom(n = 511,prob = 0.322,size = 1)
+- no missing data
+
+#####*"employed"*
+- type=binary factor, Levels: 0 1
+-distribution=Bernoulli,  rbinom(n = 511,prob = 0.196,size = 1)
+- no missing data     
+
+#####*"homelessness"*
+- type=binary factor, Levels: 0 1
+- distribution=Bernoulli, rbinom(n = 511,prob = 0.121,size = 1)
+- no missing data 
+
+#####*"substance" (Active Substance Abuse)*
+- type=binary factor, Levels: 0 1
+- distribution=Bernoulli,rbinom(n = 511,prob = 0.311,size = 1)
+- no missing data   
+- definition = *medical records revealed self-report of active substance abuse* OR *positive drug toxicology test within 1 year of the pre-endoscopy GI clinic encounter*. 
+
+#####*"opiod_benzo" (Heavy use of prescription opioids or benzodiazepines)*
+- type=binary factor, Levels: 0 1
+- distribution=Bernoulli, rbinom(n = 511, prob = .327, size = 1)
+- no missing data
+- Heavy use of prescription opioids or benzodiazepines 
+- definition = *use of prescription opioids or benzodiazepines for treatment of chronic pain, substance abuse, or psychiatric illness that was determined to be a hindrance to adequate moderate sedation by the evaluating clinician during the pre-endoscopy GI clinic encounter* 
+
+#####*"psych" (History of mental illness)*
+- type=binary factor, Levels: 0 1
+- distribution=Bernoulli, rbinom(n = 511, prob = .382 ,size = 1)
+- no missing data  
+
+#####*"insurance"*
+- type=factor, Levels: Medical medicare uninsured
+- distribution=Binomial,sample(x=c("uninsured","medicare", "Medical"), size=511, replace=TRUE, prob=c(155/n,132/n,224/n))
+- no missing data    
+
+#####*"sympotmatic" (Patient symptoms were indication for procedure)* 
+- type=binary factor, Levels: 0 1
+- distribution=Bernoulli,rbinom(n = 511, prob = .517 ,size = 1)
+- no missing data 
+- context: Non-Symptomatic indications limited to asymptomatic iron deficiency anemia, positive fecal occult blood/fecal immunohistochemical test, history of adenomatous polyp or cancer, and family history of colon cancer.
+
+#####*"preop_attend" (Patient attended preop Appt with Anesthesiologist)* 
+- type=binary factor, Levels: 0 1
+- distribution=Bernoulli, rbinom(n = 511, prob = .438 ,size = 1)
+- no missing data
+
+#####*"past_endo_hx" (Surgerical History includes endoscopic procedures)*
+- type=binary factor, Levels: 0 1
+- distribution=Bernoulli, rbinom(n = 511, prob = .587 ,size = 1)
+- no missing data
+
+#####*"hx_noshow" (Patient has previously not shown up for Appt)*
+- type=binary factor, Levels: 0 1
+- distribution=Bernoulli, rbinom(n = 511, prob = .049 ,size = 1)
+- no missing data  
+
+#####*"proc_type"* 
+- type=factor, Levels: Advanced Routine
+- distribution=Bernoulli, sample(x=c("Routine","Advanced"), size=511, replace=TRUE, prob=c(404/511,107/511))
+- no missing data  
+- definitions: *Routine* = esophagogastroduodenoscopy (EGD) and colonoscopy grouped as routine procedures.  *Advanced* = endoscopic ultrasound (EUS), endoscopic retrograde cholangiopancreatography (ERCP), and single balloon-assisted enteroscopy grouped as advanced procedures.
+
+#####*"ref_source" (Source of refferal)* 
+- type=factor, Levels: gi pcp special
+- distribution=Binomial, sample(x=c("pcp","special", "gi"), size=n, replace=TRUE,
+                       prob=c(357/n,42/n,112/n))
+- no missing data 
+
+#####*"wait_time" (time b/w preop appt & procedure appt measured in weeks)*
+- type=continuous numeric
+- distribution=normal, rnorm(n = N,mean = 10.9,sd = 6.5)
+- no missing data
+
+##Response Variable
+#####*"no_show"*
+- type=binary factor, Levels: 0 1,
+- distribution=Bernoulli, rbinom(n = 511, prob = .27 ,size = 1)
+- no missing data   
+
+___________
+
+
+
+#Data Simulation Process
+First I identified the distributions of all variables included in the dataset. Following this I then used the descriptive figures provided in the article to simulate values for each variable. In the article, continuous data was presented as means with standard deviations, whereas categorical data were presented as numbers and proportions. Therefore the datatype of the variables assisted in determining what type of distribution function should be used when simulating values. 
+
+Given that the article provides different descriptive statistics for each patient class ('show' & 'no_show'), I generated each class seperately. This ensured that I preserved the characteristics of each type of patient during the simulation process. Below are the functions I used to accomplish simulation, using the means and standard deviations for continuous variables, and the n size and proportions given for categorical variables: 
+
+```{r}
+generateNO_ShowDataset <- function(N) {
+  age <- rnorm(n = N,mean = 54.5,sd = 11.5)
+  male <- rbinom(n = N,prob= 0.659,size = 1)
+  race <- factor(sample(x=c("white","black", "hisp", "asian", "other"), size=N, replace=TRUE,
+                        prob=c(.319,.464,.094,.094, 0.029)))
+  lang <- factor(sample(x=c("english","spanish", "asian"), size=N, replace=TRUE,
+                        prob=c(.884,.058,.044)))
+  immigrant <- rbinom(n = N,prob = 0.177,size = 1)
+  employed <- rbinom(n = N,prob = .086,size = 1)
+  homelessness <- rbinom(n = N,prob = 0.188,size = 1)
+  substance <- rbinom(n = N,prob = 0.493,size = 1)
+  psych <- rbinom(n = N, prob = .355 ,size = 1)
+  opiod_benzo <- rbinom(n = N, prob = .464, size = 1)
+  
+  preop_attend <- rbinom(n = N, prob = .319 ,size = 1)
+  past_endo_hx <-rbinom(n = N, prob = .529 ,size = 1)
+  hx_noshow <- rbinom(n = N, prob = .123 ,size = 1)
+  proc_type <- factor(sample(x=c("Routine","Advanced"), size=N, replace=TRUE,
+                             prob=c(.935,.065)))
+  sympotmatic <- rbinom(n = N, prob = .471 ,size = 1)
+  ref_source <- factor(sample(x=c("pcp","special", "gi"), size=N, replace=TRUE,
+                              prob=c(.761,.073,.167)))
+  wait_time <- rnorm(n = N,mean = 10.9,sd = 6.5)
+  no_show <- rbinom(n = N, prob = 1 ,size = 1)
+  data.frame(no_show,age,male,race,lang,immigrant,employed,homelessness,substance,opiod_benzo,psych,sympotmatic,preop_attend,past_endo_hx,hx_noshow,proc_type,ref_source,wait_time)
+}
+
+generateShowDataset <- function(N) {
+  age <- rnorm(n = N,mean = 55.7,sd = 10.9)
+  male <- rbinom(n = N,prob= 0.544,size = 1)
+  race <- sample(x=c("white","black", "hisp", "asian", "other"), size=N, replace=TRUE,
+                 prob=c(.29,.295,.196,.193, 0.01565558))
+  lang <- sample(x=c("english","spanish", "asian"), size=N, replace=TRUE,
+                 prob=c(.732,.129,.113))
+  immigrant <- rbinom(n = N,prob = 0.376,size = 1)
+  employed <- rbinom(n = N,prob = 0.246,size = 1)
+  homelessness <- rbinom(n = N,prob = 0.097,size = 1)
+  substance <- rbinom(n = N,prob = 0.244,size = 1)
+  psych <- rbinom(n = N, prob = .391 ,size = 1)
+  opiod_benzo <- rbinom(n = N, prob = .276, size = 1)
+  preop_attend <- rbinom(n = N, prob = .483 ,size = 1)
+  past_endo_hx <-rbinom(n = N, prob = .609 ,size = 1)
+  hx_noshow <- rbinom(n = N, prob = .021 ,size = 1)
+  proc_type <- sample(x=c("Routine","Advanced"), size=N, replace=TRUE,
+                      prob=c(.737,.263))
+  sympotmatic <- rbinom(n = N, prob = .534 ,size = 1)
+  ref_source <- sample(x=c("pcp","special", "gi"), size=N, replace=TRUE,
+                       prob=c(.676,.086,.239))
+  wait_time <- rnorm(n = N,mean = 8.7,sd = 6.2)
+  no_show <- rbinom(n = N, prob = 0 ,size = 1)
+  data.frame(no_show,age,male,race,lang,immigrant,employed,homelessness,substance,opiod_benzo,psych,sympotmatic,preop_attend,past_endo_hx,hx_noshow,proc_type,ref_source,wait_time)
+}
+```
+
+17 of the 18 variables were generated by these functions, however, the 'insurance' variable needed to be generated independently.  When it was included in these functions, it was difficult to ensure only individuals with an age >= 65 were the only people labeled as being on Medicare.  
+
+To ensure only senior citizens were labeled as having Medicare I used an ifelse statement. This labeled everyone younger than 65 as having 'other' insurance, and those 65 or older as having 'Medicare' insurance. I then used the check categorical function to obtain the n size of the individuals who did not have Medicare. This subgroup n size was then used as the denominator to recalculate the proportions of the remaing insurance levels (Medical, and uninsured). This process is demonstrated by the code shown below:
+
+
+```{r}
+
+set.seed(616)
+N = 138
+df_noshow <- generateNO_ShowDataset(N = 138)
+df_noshow$insurance <- ifelse(df_noshow$age >= 65, 'MediCare', 'other')
+
+
+check_categorical <- function(df_noshow, insurance) {
+  resultset <- group_by(df_noshow, insurance)
+  summarize(resultset,
+            min.age = min(age,na.rm = T),
+            avg.age = mean(age, na.rm=T),
+            med.age = median(age, na.rm=T),
+            max.age = max(age,na.rm = T),
+            n_size = length(age) )
+}
+
+
+check_categorical(df_noshow, insurance)
+N = nrow(filter(df_noshow, insurance=='other'))
+others<- filter(df_noshow, insurance=='other')
+insurance <- sample(x=c("uninsured","Medical"), size=N, replace=TRUE, 
+                    prob=c(0.3138075,0.6875872))
+
+
+
+df_noshow[which(df_noshow$insurance == 'other'),'insurance'] <- insurance
+check_categorical(df_noshow, insurance)
+
+
+
+
+df_show <- generateShowDataset(N=373)
+df_show$insurance <- ifelse(df_show$age >= 65, 'MediCare', 'other')
+insurance <- sample(x=c("uninsured","Medical"), size=373, replace=TRUE, 
+                    prob=c(.3677991,0.6174298))
+
+
+
+resultset <- group_by(df_noshow, insurance)
+summarize(resultset,
+          min.age = min(age,na.rm = T),
+          avg.age = mean(age, na.rm=T),
+          med.age = median(age, na.rm=T),
+          max.age = max(age,na.rm = T),
+          n_size = length(age) )
+
+N = nrow(filter(df_show, insurance=='other'))
+others<- filter(df_show, insurance=='other')
+others_insurance <- sample(x=c("uninsured","Medical"), size=N, replace=TRUE, 
+                           prob=c(0.4420772,0.5565912))
+
+df_show[which(df_show$insurance == 'other'),'insurance'] <- others_insurance
+
+```
+
+
+
+
+I then created my final data set by merging these data frames. 
+
+```{r}
+# Merged Datasets
+df<-merge(df_show, df_noshow,all.x = T,all.y = T)
+
+head(df)
+```
+
+_________
+
+##EDA & Validating Data Simulation Through Plots
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# The three plots below validate our insurance variable's legitimacy
+DoubleHistogramPlot(df,'age','insurance', 
+                    title="Age Distributions by Grouped by Insurance Coverage") + 
+  theme_minimal()
+
+ShadedDensity(df,'age',
+              title = 'Proportion of "No-Show" Patients Younger than 65 (Non-Medicare Pts)',
+              threshold = 64) + 
+  theme_minimal()
+
+d <- melt(select(df, age, insurance))
+ggplot(d, aes(x = value, fill = insurance)) +
+  facet_wrap(~variable, scales = "free") + 
+  geom_density(alpha=.4) +
+  ggtitle("Validating Insurance Coverage: Age Density Plots") +
+  theme_minimal()
+
+
+
+
+```
+
+```{r}
+ScatterHist(df, "age", "wait_time", title="Age & Wait Time")
+```
+
+
+
+```{r}
+
+
+# Shows no_shows tend to wait longer between preop appointments and actual endoscopic procedures. 
+df$no_show <- as.factor(df$no_show)
+g<-ggplot(df, aes(x=no_show, y=wait_time))
+g+geom_violin(alpha=0.5, color="gray")+geom_jitter(alpha=0.5, aes(color=no_show),position = position_jitter(width = 0.1))+coord_flip()+ggtitle('Num Weeks b/w Appt & Procedure')+theme_bw()
+```
+
+
+
+```{r}
+# Gives an overall summary of the relationships that exist among the variables in the dataset. 
+df$no_show <- as.numeric(df$no_show)
+
+corrgram(df,lower.panel=panel.conf, 
+         upper.panel=panel.shade, 
+         diag.panel=panel.density)
+
+ggcorr(df, method = c("all.obs", "spearman"),label_size = 1)
+```
+
+
+
+
+##Bivariate Analysis
+
+###Categorical
+####Binary - Chi-square test
+Chi-square test was used to identify significant binary variables. If the chi-square statistic is less than 0.05, then we reject the hypothesis that the predictor variable is an independent factor in patient no shows. Each binary variable was assessed using the function below:
+```{r}
+
+#If the chi-square statistic is less than 0.05, then we reject the hypothesis that the predictor variable is an independent factor in patient no shows.
+
+get_chisq <- function(y,x) {
+  test<-table(y, x)
+  rownames(test) <- c('Show', 'No-Show')
+  chisq.test(test)
+}
+
+#Significant binary predictors (NOT independent factor in determing whether a patient will not show up to an outpatient endoscopic procedure requiring anesthesia).
+get_chisq(df$no_show, df$substance)
+get_chisq(df$no_show, df$employed)
+get_chisq(df$no_show, df$opiod_benzo)
+get_chisq(df$no_show, df$preop_attend)
+get_chisq(df$no_show, df$hx_noshow)
+get_chisq(df$no_show, ifelse(df$proc_type=='Advanced',1,0))
+
+
+#Other variables assessed and their chisq results (were later identified as insignificant): 
+
+#We reject the null hypothesis that being male is an independent factor in not showing up to an outpatient endoscopic procedure requiring anesthesia
+get_chisq(df$no_show, df$male)
+
+#We reject the null hypothesis that being an immagrant is an independent factor in not showing up to an outpatient endoscopic procedure requiring anesthesia
+get_chisq(df$no_show, df$immigrant)
+
+#We fail to reject the null hypothesis that being an immagrant is an independent factor in not showing up to an outpatient endoscopic procedure requiring anesthesia
+get_chisq(df$no_show, df$homelessness)
+
+#We fail to reject the null hypothesis that having a history of mental illness is an independent factor in not showing up to an outpatient endoscopic procedure requiring anesthesia
+get_chisq(df$no_show, df$psych)
+
+#We fail to reject the null hypothesis that being symptomatic is an independent factor in not showing up to an outpatient endoscopic procedure requiring anesthesia
+get_chisq(df$no_show, df$sympotmatic)
+
+#We fail to reject the null hypothesis that having a history of endoscopic procedures is an independent factor in not showing up to an outpatient endoscopic procedure requiring anesthesia
+get_chisq(df$no_show, df$past_endo_hx)
+```
+
+
+####Non-Binary Categorical - ANOVA
+Anova test was used to compare the mean value of continuous variables among different groups. This test was only used to compare groups if there was more than two possible groups. 
+A signicant result from this test does not signify that all of the means are significantly different.  Instead, it only signifies that one of the means is significantly different from one of the other means.  
+
+```{r}
+#The mean wait time between preop appointments and outpatient endo procedures are NOT significantly different among diferent insurance groups.
+summary(aov(wait_time ~ insurance, data=df))
+qplot(insurance, wait_time, data=df, geom="boxplot", fill=insurance)
+
+#At least one of the insurance groups have a significantly different mean age. This is expected given the way we simulated the data, and the fact that to be eligible for Medicare, you must be 65 or older.  
+summary(aov(age ~ insurance, data=df))
+qplot(insurance, age, data=df, geom="boxplot", fill=insurance)
+
+
+#The mean wait time between preop appointments and outpatient endo procedures are NOT significantly different among diferent racial groups.
+summary(aov(wait_time ~ race, data=df))
+qplot(race, wait_time, data=df, geom="boxplot", fill=race)
+
+#The mean age is NOT significantly different among diferent racial groups. 
+summary(aov(age ~ race, data=df))
+qplot(race, age, data=df, geom="boxplot", fill=race)
+
+
+#The mean wait time between preop appointments and outpatient endo procedures are NOT significantly different among diferent language groups.
+summary(aov(wait_time ~ lang, data=df))
+qplot(lang, wait_time, data=df, geom="boxplot", fill=lang)
+
+#The mean age is NOT significantly different among diferent language groups. 
+summary(aov(age ~ lang, data=df))
+qplot(lang, age, data=df, geom="boxplot", fill=lang)
+
+
+#The mean wait time between preop appointments and outpatient endo procedures IS significantly different among diferent referral groups.
+summary(aov(wait_time ~ ref_source, data=df))
+qplot(ref_source, wait_time, data=df, geom="boxplot", fill=ref_source)
+
+#The mean age is NOT significantly different among diferent referral groups. 
+summary(aov(age ~ ref_source, data=df))
+qplot(ref_source, age, data=df, geom="boxplot", fill=ref_source)
+```
+
+
+###Continuous - t-tests
+
+Next I determine if the mean age and wait time is significantly different among the two patient groups of interest (shows, and no_shows). These groups are compared using an independent samples t-test. A significant result in this test signifies that the mean value for the continuous variable is significantly different among the two groups. 
+```{r}
+#The average wait time among patients that show up to outpatient endoscopic procedures requiring anesthesia and those that do not show up IS significantly different.
+t.test(wait_time ~ no_show, data=df, var.equal=TRUE)
+#The average age among patients that show up to outpatient endoscopic procedures requiring anesthesia and those that do not show up IS NOT significantly different.
+t.test(age ~ no_show, data=df, var.equal=TRUE)
+
+```
+
+
+##Correlated Variables
+The response variable no-show is correlated with the following variables:
+- employed
+- substance
+- opiod_benzo
+- preop_attend
+- hx_noshow
+- proc_type 
+- wait_time (weeks)
+
+These correlated variables can be found within the artcles [Table 2: Multivariable logistic regression of predictors](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4589132/table/Tab2/) 
+The analysis and plots above also reiterate these findings, and show no multicolinearity or confounding variables in the final data set. 
+```{r}
+
+df$no_show <- as.numeric(df$no_show)
+
+slim_df <- df[,c('no_show','employed','substance',
+                 'opiod_benzo','preop_attend','hx_noshow',
+                 'proc_type','wait_time')]
+
+resultset <- group_by(slim_df, no_show)
+summarize(resultset,
+          emp = mean(employed,na.rm = T),
+          substance = mean(substance, na.rm=T),
+          opiod_benzo = mean(opiod_benzo, na.rm=T),
+          preop_att = mean(preop_attend,na.rm = T),
+          hx_noshow = mean(hx_noshow,na.rm = T),
+          wait_time = mean(wait_time,na.rm = T))
+
+
+corrgram(slim_df,lower.panel=panel.conf, 
+         upper.panel=panel.shade, 
+         diag.panel=panel.density)
+
+ggcorr(slim_df, method = c("all.obs", "spearman"),label_size = 2,label = T)
+```
+
+_____
+##Comparison with Original Article 
+Below uses the epi package to calculate the Odds Ratio for every predictor variable use. All results fall within the 95% CI published in the article verifying the simulated data correctly emulates the data used in the research article.
+
+```{r}
+
+get_or_and_corr <- function(x,label_x1,label_x0) {
+  test<-table(df$no_show, x)
+  rownames(test) <- c('Show', 'No-Show')
+  names(test) <- c(label_x1,label_x0)
+  print(epi.2by2(test))
+  cor.test(df$no_show, x)
+}
+df$no_show <- as.numeric(df$no_show)
+get_or_and_corr(df$employed,'unemployed','employed' )
+get_or_and_corr(df$substance,'SA','no_SA' )
+get_or_and_corr(df$opiod_benzo,'opiod_benzo','no_opiod_benzo' )
+get_or_and_corr(df$preop_attend,'preop_attend','preop_noshow' )
+get_or_and_corr(df$hx_noshow, 'phx_noshows', 'no_phx_noshows')
+get_or_and_corr(ifelse(df$proc_type=='Advanced',1,0),'Advanced','Routine' )
+cor.test(df$no_show, df$wait_time) # quantitative - 2 by 2 table not needed.
+
+```
+
+
+Like the article my final model identified that patients with a history of no-show had the greatest odds of not attending their endoscopy appointment (article 6.4, this analysis 6.15). 
+
+
+##Varibles associated with NOT showing up to procedure
+Below compares my findings with the articles among the predictors that were shown to be *positively* associated with a higher no-show rate:
+
+####History of no-show
+* Article - (odds ratio [OR] 6.4; 95 % confidence interval [CI], 2.4-17.5)
+* Simulation - 6.15 (2.80, 13.52)
+
+####active substance abuse within the past year 
+* Article (OR 2.2; 95 % CI 1.4-3.6)
+* Simulation  2.97 (1.97, 4.48)
+
+####Longer Wait-time in weeks
+* Article (OR 1.05; 95 % CI 1.00-1.09)
+* Simulation 
+
+####Heavy prescription opioids or benzodiazepines use
+* Article (OR 1.6; 95 % CI 1.0-2.6)
+* Simulation 1.85 (1.24, 2.77)
+
+
+##Varibles associated with showing up to procedure
+Below compares my findings with the articles among the predictors that were shown to be *inversely* associated with no-shows:
+
+####Active Employment
+* Article (OR 0.38; 95 % CI 0.18-0.81)
+Simulation  0.28 (0.14, 0.54)
+
+####Attended a pre-operative appointment with an anesthesiologist
+* Article (OR 0.52; CI 0.32-0.85),
+* Simulation  0.60 (0.40, 0.90)
+
+####Advanced Procedure
+* Article *ADVANCED* Procedures (OR 0.43; 95 % CI 0.19-0.94)
+* Simulation *ADVANCED* Procedures 0.20 (0.10, 0.40)
+
+
+_________
+
+##Logistic Regression
+The Logistic Regression formula is shown below: 
+
+$$\log(\theta/(1-\theta)) = \gamma_0 + \gamma_1 X_1 + \cdots + \gamma_p X_p$$
+
+
+Here each $X$ signifies a predictor variable and we are calculating its effect on patient no_show while adjusting for other predictors $X_2, \dots, X_p$.
+
+
+
+```{r}
+#Logistic Regression
+logisticPseudoR2s <- function(LogModel) {
+  dev <- LogModel$deviance 
+  nullDev <- LogModel$null.deviance 
+  modelN <-  length(LogModel$fitted.values)
+  R.l <-  1 -  dev / nullDev
+  R.cs <- 1- exp ( -(nullDev - dev) / modelN)
+  R.n <- R.cs / ( 1 - ( exp (-(nullDev / modelN))))
+  cat("Pseudo R^2 for logistic regression\n")
+  cat("Hosmer and Lemeshow R^2  ", round(R.l, 3), "\n")
+  cat("Cox and Snell R^2        ", round(R.cs, 3), "\n")
+  cat("Nagelkerke R^2           ", round(R.n, 3),    "\n")
+}
+
+
+df<-merge(df_show, df_noshow,all.x = T,all.y = T)
+
+df$no_show <- as.numeric(df$no_show)
+
+slim_df <- df[,c('no_show','employed','substance',
+                 'opiod_benzo','preop_attend','hx_noshow',
+                 'proc_type','wait_time')]
+
+fit_null <- glm(formula = no_show~1., data = slim_df, family = 'binomial')
+fit_full <- glm(formula = no_show~., data = slim_df, family = 'binomial')
+fit_step1 = step(fit_null, scope=list(lower=fit_null, upper=fit_full),direction="forward")
+
+```
+
+
+##Final Model
+```{r}
+
+logisticPseudoR2s(fit_step1)
+summary(fit_step1)
+```
+
+##Final Model Interpretation
+The final model's predictor variables are all identified as significant. This mirrors the findings in the research article.  Below are the interpretations of each predictor variables effect on the response 'no_show'
+
+* proc_typeRoutine -     
+The beta coef of proc_typeRoutine, 1.56335, means that a one unit increase in proc_typeRoutine (aka the procedure to be performed is a routine procedure NOT an Advanced procedure) is associated with an 1.56335 increase of the logarithm of the odds of the patient not showing up to the scheduled outpatient endoscopic procedure. In short, this means those scheduled for Routine procedures are more likely to not show up.
+
+* substance -        
+The beta coef of substance, 0.90480, means that a one unit increase in substance (aka a patient having a history of substance abuse) is associated with an 0.90480 increase of the logarithm of the odds of the patient not showing up to the scheduled outpatient endoscopic procedure. In short, this means those with a history of substance abuse are more likely to not show up.
+
+* hx_noshow -      
+The beta coef of hx_noshow, 1.64862, means that a one unit increase in hx_noshow (aka a patient having a history of not showing up to appointments) is associated with an 1.64862 increase of the logarithm of the odds of the patient not showing up to the scheduled outpatient endoscopic procedure. In short this means those with a history of missed appointements are more likely to not show up.
+
+* employed -     
+The beta coef of employed, -1.12643, means that a one unit increase in employed (aka a patient being employed) is associated with an 1.12643 DECREASE of the logarithm of the odds of the patient not showing up to the scheduled outpatient endoscopic procedure. In short, this means those who are currently employed are LESS likely to miss an appointment. 
+
+* wait_time -    
+The beta coef of wait_time, 0.06125, means that a one unit increase in wait_time (aka the number of weeks between preop appt and the scheduled procedure) is associated with an 0.06125 increase of the logarithm of the odds of the patient not showing up to the scheduled outpatient endoscopic procedure. In short, this means those with longer periods of time between preop appts and procedures are more likely to not show up. 
+
+* opiod_benzo -    
+The beta coef of opiod_benzo, 0.60233, means that a one unit increase in opiod_benzo (aka the patient having being a heavy user of opiods or benzodiazipines) is associated with an 0.60233 increase of the logarithm of the odds of the patient not showing up to the scheduled outpatient endoscopic procedure. In short, this means those who use opiods or benzos heavily are more likely to not show up. 
+
+* preop_attend -     
+The beta coef of preop_attend, -0.49648, means that a one unit increase in preop_attend (aka the patient attended their preop appointment) is associated with an 0.49648 DECREASE of the logarithm of the odds of the patient not showing up to the scheduled outpatient endoscopic procedure. In short, this means those who attend preop appointments are LESS likely to not show up. 
+
+
+
+________
+
+##References:
+
+Chang JT, Sewell JL, Day LW. Prevalence and predictors of patient no-shows to outpatient endoscopic procedures scheduled with anesthesia. BMC Gastroenterology. 2015;15:123. doi:10.1186/s12876-015-0358-3 (doi:10.1186/s12876-015-0358-3).
+
